@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Z-Coder URL Sync Engine",
+  "version": "1.0",
+  "description": "Seamlessly capture and sync competitive programming problems to your Z-Coder dashboard.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:5000/*"
+  ]
+}
