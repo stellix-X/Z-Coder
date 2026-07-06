@@ -43,37 +43,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sync-btn').addEventListener('click', async () => {
         statusText.innerText = "Capturing...";
         
-        // get the url of the active tab
-        let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
-        chrome.storage.local.get(['zcoder_token'], async (result) => {
-            try {
-                const res = await fetch('http://localhost:5000/api/bookmarks', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${result.zcoder_token}`
-                    },
-                    body: JSON.stringify({ url: tab.url })
-                });
-
-                if (res.ok) {
-                    const btn = document.getElementById('sync-btn');
-                    btn.innerText = "Problem Synced ✓";
-                    btn.classList.add('success');
-                    statusText.innerText = "Check your React dashboard!";
-                    setTimeout(() => {
-                        btn.innerText = "Save Current Page";
-                        btn.classList.remove('success');
-                        statusText.innerText = "";
-                    }, 3000);
-                } else {
-                    statusText.innerText = "Failed to sync. Token expired?";
-                }
-            } catch (err) {
-                statusText.innerText = "Error syncing problem.";
+        try {
+            // get the url of the active tab
+            let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            
+            if (!tab || !tab.url) {
+                statusText.innerText = "Error: Could not read page URL.";
+                return;
             }
-        });
+            
+            chrome.storage.local.get(['zcoder_token'], async (result) => {
+                if (!result.zcoder_token) {
+                    statusText.innerText = "Error: Not logged in.";
+                    return;
+                }
+
+                try {
+                    const response = await fetch('http://localhost:5000/api/bookmarks', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${result.zcoder_token}` 
+                        },
+                        body: JSON.stringify({ url: tab.url }) 
+                    });
+
+                    // Check if the backend sent an error (like our duplicate 400 error)
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        // FIX 3: Use the statusText variable defined at the top of the file
+                        statusText.innerText = errorData.error || "Failed to sync. Token expired?";
+                        return; 
+                    }
+
+                    // If successful:
+                    statusText.innerText = "Problem Synced Successfully!";
+                    
+                } catch (error) {
+                    // This catches actual server crashes or offline servers
+                    statusText.innerText = "Server offline or connection failed.";
+                }
+            });
+        } catch (err) {
+            statusText.innerText = "Extension error capturing tab.";
+        }
     });
 
     // handle logout

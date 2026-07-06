@@ -1,11 +1,17 @@
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Force dotenv to find the exact absolute path of the .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -53,6 +59,7 @@ app.post('/register', async (req, res) => {
         const token = jwt.sign({ id: result.rows[0].id }, process.env.JWT_SECRET);
         res.json({ token, email });
     } catch (err) {
+        console.error("❌ ACTUAL REGISTER ERROR:", err.message);
         res.status(400).json({ error: "Email already exists or database error" });
     }
 });
@@ -90,14 +97,22 @@ app.get('/api/bookmarks', verifyToken, async (req, res) => {
 // Add a new bookmark
 app.post('/api/bookmarks', verifyToken, async (req, res) => {
     const { url } = req.body;
+    const userId = req.user.id;
+
     try {
-        const result = await db.query(
-            "INSERT INTO bookmarks (user_id, problem_url) VALUES ($1, $2) RETURNING *",
-            [req.user.id, url]
+        const newBookmark = await db.query(
+            'INSERT INTO bookmarks (user_id, problem_url) VALUES ($1, $2) RETURNING *',
+            [userId, url]
         );
-        res.json(result.rows[0]);
+        res.json(newBookmark.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: "Failed to save bookmark" });
+        // Check if the error is a PostgreSQL unique constraint violation
+        if (err.code === '23505') {
+            return res.status(400).json({ error: "You have already saved this problem link!" });
+        }
+        
+        console.error("Database Error:", err);
+        res.status(500).json({ error: "Server failed to save bookmark." });
     }
 });
 
@@ -112,42 +127,55 @@ app.delete('/api/bookmarks/:id', verifyToken, async (req, res) => {
 });
 
 const server = app.listen(5000, () => {
-    console.log("🚀 Z-Coder Backend is actively listening on port 5000...");
+    console.log("Z-Coder Backend is actively listening on port 5000...");
 });
 
 
-// --- Z-CODER COMPILER ENGINE ---
+// --- Z-CODER COMPILER ENGINE (DYNAMIC WANDBOX WIRING) ---
 app.post('/api/compile', verifyToken, async (req, res) => {
-    const { language, code } = req.body;
-
-    // Map your competitive programming languages to the sandbox versions
-    const languageMap = {
-        'cpp': { language: 'c++', version: '10.2.0' },
-        'python': { language: 'python', version: '3.10.0' }
-    };
-
-    const config = languageMap[language];
-    if (!config) return res.status(400).json({ error: "Unsupported language" });
+    const { language, code, stdin } = req.body; 
 
     try {
-        // Securely proxy the code to the Piston execution sandbox
-        const response = await fetch('https://emacsx.com/api/v2/execute', {
+        const listRes = await fetch('https://wandbox.org/api/list.json');
+        const compilers = await listRes.json();
+        
+        let compilerTag = "";
+        if (language === 'python') {
+            const pyOptions = compilers.filter(c => c.language === 'Python' && c.name.startsWith('cpython-') && !c.name.includes('head'));
+            if (pyOptions.length > 0) compilerTag = pyOptions[0].name;
+        } else if (language === 'cpp') {
+            const cppOptions = compilers.filter(c => c.language === 'C++' && c.name.startsWith('gcc-') && !c.name.includes('head'));
+            if (cppOptions.length > 0) compilerTag = cppOptions[0].name;
+        }
+
+        if (!compilerTag) return res.status(400).json({ error: "No stable compiler found for this language." });
+
+        const response = await fetch('https://wandbox.org/api/compile.json', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                language: config.language,
-                version: config.version,
-                files: [{ content: code }]
+                compiler: compilerTag,
+                code: code,
+                stdin: stdin || "", // 2. Send the standard input to Wandbox!
+                save: false
             })
-        });
+        });   
 
-        const data = await response.json();
+        const textData = await response.text();
         
-        // Extract the console output or compilation errors
-        if (data.run && data.run.output) {
-            res.json({ output: data.run.output });
+        let data;
+        try {
+            data = JSON.parse(textData);
+        } catch (parseError) {
+            return res.status(400).json({ output: `Wandbox System Error: ${textData}` });
+        }
+        
+        // Wandbox returns status "0" for success. 
+        if (data.status === "0") {
+            res.json({ output: data.program_message || "Execution successful, no output returned." });
         } else {
-            res.status(400).json({ output: "Compilation Error or Syntax Error." });
+            // If compilation fails, return the specific compiler logs
+            res.status(400).json({ output: data.compiler_error || data.compiler_message || data.program_message || "Compilation failed." });
         }
     } catch (err) {
         console.error("Compiler Engine Error:", err);

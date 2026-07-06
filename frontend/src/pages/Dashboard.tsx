@@ -18,6 +18,7 @@ const Dashboard: React.FC = () => {
   const [language, setLanguage] = useState('python');
   const [output, setOutput] = useState('Output will appear here...');
   const [isCompiling, setIsCompiling] = useState(false);
+  const [stdin, setStdin] = useState('');
   
   const navigate = useNavigate();
 
@@ -41,13 +42,15 @@ const Dashboard: React.FC = () => {
 
   const handleAddBookmark = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUrl) return;
+    if (!newUrl) return; //
     try {
-      const res = await axios.post('http://localhost:5000/api/bookmarks', { url: newUrl }, getAuthHeaders());
-      setBookmarks([res.data, ...bookmarks]);
-      setNewUrl('');
-    } catch (err) {
-      alert('Failed to save problem link.');
+      const res = await axios.post('http://localhost:5000/api/bookmarks', { url: newUrl }, getAuthHeaders()); //
+      setBookmarks([res.data, ...bookmarks]); //
+      setNewUrl(''); //
+    } catch (err: any) {
+      // Look for our specific custom backend error, otherwise use a generic message
+      const errorMsg = err.response?.data?.error || 'Failed to save problem link.';
+      alert(errorMsg);
     }
   };
 
@@ -65,7 +68,8 @@ const Dashboard: React.FC = () => {
     setIsCompiling(true);
     setOutput("Compiling and executing via Z-Coder Engine...");
     try {
-      const res = await axios.post('http://localhost:5000/api/compile', { language, code }, getAuthHeaders());
+      // Include stdin in the payload!
+      const res = await axios.post('http://localhost:5000/api/compile', { language, code, stdin }, getAuthHeaders());
       setOutput(res.data.output);
     } catch (err: any) {
       setOutput(err.response?.data?.output || "Engine execution failed.");
@@ -132,6 +136,14 @@ const Dashboard: React.FC = () => {
             style={styles.editor} 
             value={code} 
             onChange={(e) => setCode(e.target.value)}
+            spellCheck="false"
+          />
+
+          <textarea
+            style={{ ...styles.editor, height: '100px', marginTop: '10px' }}
+            placeholder="Paste custom input/testcases here..."
+            value={stdin}
+            onChange={(e) => setStdin(e.target.value)}
             spellCheck="false"
           />
           
