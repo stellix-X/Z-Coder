@@ -30,7 +30,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchBookmarks = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}api/bookmarks`, getAuthHeaders());
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookmarks`, getAuthHeaders());
         setBookmarks(res.data);
       } catch (err) {
         localStorage.removeItem('zcoder_token');
@@ -44,7 +44,7 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     if (!newUrl) return; //
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}api/bookmarks`, { url: newUrl }, getAuthHeaders()); //
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/bookmarks`, { url: newUrl }, getAuthHeaders()); //
       setBookmarks([res.data, ...bookmarks]); //
       setNewUrl(''); //
     } catch (err: any) {
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}api/bookmarks/${id}`, getAuthHeaders());
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookmarks/${id}`, getAuthHeaders());
       setBookmarks(bookmarks.filter(b => b.id !== id));
     } catch (err) {
       alert('Failed to delete bookmark.');
@@ -69,7 +69,7 @@ const Dashboard: React.FC = () => {
     setOutput("Compiling and executing via Z-Coder Engine...");
     try {
       // Include stdin in the payload!
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}api/compile`, { language, code, stdin }, getAuthHeaders());
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/compile`, { language, code, stdin }, getAuthHeaders());
       setOutput(res.data.output);
     } catch (err: any) {
       setOutput(err.response?.data?.output || "Engine execution failed.");
