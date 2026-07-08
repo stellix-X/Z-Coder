@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusText.innerText = "Authenticating...";
 
         try {
-            const res = await fetch('http://localhost:5000/login', {
+            const res = await fetch('https://z-coder-production.up.railway.app/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 try {
-                    const response = await fetch('http://localhost:5000/api/bookmarks', {
+                    const response = await fetch('https://z-coder-production.up.railway.app/api/bookmarks', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
